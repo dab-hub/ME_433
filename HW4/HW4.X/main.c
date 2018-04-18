@@ -40,7 +40,59 @@
 #define CS LATAbits.LATA0
 
 int main() {
+    
+    void spi_init() {
+  // set up the chip select pin as an output
+  // the chip select pin is used by the sram to indicate
+  // when a command is beginning (clear CS to low) and when it
+  // is ending (set CS high)
+  TRISAbits.TRISA0 = 0;
+  CS = 1;
 
+  // Master - SPI4, pins are: SDI4(F4), SDO4(F5), SCK4(F13).  
+  // we manually control SS4 as a digital output (F12)
+  // since the pic is just starting, we know that spi is off. We rely on defaults here
+ 
+  // setup spi4
+  SPI1CON = 0;              // turn off the spi module and reset it
+  SPI1BUF;                  // clear the rx buffer by reading from it
+  SPI1BRG = 0x1;            // 12MHz
+  SPI1STATbits.SPIROV = 0;  // clear the overflow bit
+  SPI1CONbits.CKE = 1;      // data changes when clock goes from hi to lo (since CKP is 0)
+  SPI1CONbits.MSTEN = 1;    // master operation
+  SPI1CONbits.ON = 1;       // turn on spi 1
+
+   
+    RPA1Rbits.RPA1R = 0b0011; // Set pin A1 to SDO
+    
+//                            // send a ram set status command.
+//  CS = 0;                   // enable the ram
+//  spi_io(0x01);             // ram write status
+//  spi_io(0x41);             // sequential mode (mode = 0b01), hold disabled (hold = 0)
+//  CS = 1;                   // finish the command
+}
+    
+    unsigned char spi_io(unsigned char o) {
+  SPI1BUF = o;
+  while(!SPI1STATbits.SPIRBF) { // wait to receive the byte
+    ;
+  }
+  return SPI1BUF;
+}
+
+    void set_spi_voltage(char a, int b)
+{
+    unsigned short t = 0;
+    t=a<<15;
+    t=t|0b0111000000000000;
+    t=t|(b<<2);
+    CS=0;
+    spi_io((char)(t>>8));
+    spi_io((char)t);
+    CS = 1;
+            
+}
+    
     __builtin_disable_interrupts();
 
     // set the CP0 CONFIG register to indicate that kseg0 is cacheable (0x3)
@@ -58,31 +110,41 @@ int main() {
     // do your TRIS and LAT commands here
     
     TRISAbits.TRISA4 = 0; //A4: Output
-    TRISAbits.TRISA0 = 0; //A0: Output
 
     TRISBbits.TRISB4 = 1; //B4: Input
+    
+    spi_init();
+ 
+    
     __builtin_enable_interrupts();
-    int sysclkfreq = 48000000;
+    int sysclkfreq = 48000000; //48 MHz
 
-    while(1) {
-	// use _CP0_SET_COUNT(0) and _CP0_GET_COUNT() to test the PIC timing
-	// remember the core timer runs at half the sysclk       
-        
-        
-        if (PORTBbits.RB4 == 1) // Button not pressed
+    
+    int i = 0;
+    float f = 0.0;
+    float g = 0.0;
+
+    while (1) {
+    //set clock count to 0
+    
+    f = 511.5 + 511.5*sin(i*2.0*3.14159/1000.0);
+    g = (float)(i%1023);
+    
+    
+    i++;
+    
+    
+    set_spi_voltage((char)0,(int)f);
+    set_spi_voltage((char)1,(int)g);
+    while(_CP0_GET_COUNT()<=(sysclkfreq/(2*2*1000)))
         {
-            _CP0_SET_COUNT(0);
-            while(_CP0_GET_COUNT()<=(sysclkfreq/(2*2*1000)))
-            {
-                LATAbits.LATA4 = 1;
-            }
-            while(_CP0_GET_COUNT()>(sysclkfreq/(2*2*1000)) && _CP0_GET_COUNT()<=(2*sysclkfreq/(2*2*1000)))
-            {
-                LATAbits.LATA4 = 0;
-            }
-        }
-        else { // Button pressed
-            LATAbits.LATA4 = 0;
+        //wait 100ms
         }
     }
+    
 }
+
+
+
+
+
