@@ -125,10 +125,12 @@ int main() {
     float g = 0.0;
 
     while (1) {
+        _CP0_SET_COUNT(0);
     //set clock count to 0
     
-    f = 511.5 + 511.5*sin(i*2.0*3.14159/1000.0);
-    g = (float)(i%1023);
+    f = 511.5 + 511.5*sin(i*2.0*3.14159/100.0);
+    
+    g = 2.0*abs((float)((i*1024/200)%1024)-511.5);
     
     
     i++;
@@ -136,9 +138,9 @@ int main() {
     
     set_spi_voltage((char)0,(int)f);
     set_spi_voltage((char)1,(int)g);
-    while(_CP0_GET_COUNT()<=(sysclkfreq/(2*2*1000)))
+    while(_CP0_GET_COUNT()<=(sysclkfreq/(2*1000)))
         {
-        //wait 100ms
+        //wait 1ms
         }
     }
     
