@@ -1,5 +1,6 @@
 #include<xc.h>           // processor SFR definitions
 #include<sys/attribs.h>  // __ISR macro
+#include"i2c_master_noint.h"
 
 // DEVCFG0
 #pragma config DEBUG = OFF // no debugging
@@ -36,6 +37,11 @@
 #pragma config FUSBIDIO = ON // USB pins controlled by USB module
 #pragma config FVBUSONIO = ON // USB BUSON controlled by USB module
 
+#define ADDR 0b0100000
+
+void initExp();
+void i2cwrite(unsigned char reg, unsigned char val);
+unsigned char i2cread();
 
 int main() {
 
@@ -72,18 +78,30 @@ int main() {
             while(_CP0_GET_COUNT()<=(sysclkfreq/(2*2*5)))
             {
                 LATAbits.LATA4 = 1;
+                                if(i2cread()>>7==1){
+                    i2cwrite(0x0A, 0b00001111); //all outputs on
+                }
+                else{
+                    i2cwrite(0x0A, 0b00000000); //all outputs off
+                }    
+
             }
             while(_CP0_GET_COUNT()>(sysclkfreq/(2*2*5)) && _CP0_GET_COUNT()<=(2*sysclkfreq/(2*2*5)))
             {
                 LATAbits.LATA4 = 0;
+                                if(i2cread()>>7==1){
+                    i2cwrite(0x0A, 0b00001111); //all outputs on
+                }
+                else{
+                    i2cwrite(0x0A, 0b00000000); //all outputs off
+                }    
+
             }
+
+        
             
-            if(i2cread()>>7==1){
-                i2cwrite(0x0A, 0b00001111); //all outputs on
-            }
-            else{
-                i2cwrite(0x0A, 0b00000000); //all outputs off
-            }
+            
+
         
 
     }
@@ -99,12 +117,12 @@ void initExp(){
     i2cwrite(0x0A,0b00001111); //lat
 }
 
-#define ADDR 0b01000000
+
 
 void i2cwrite(unsigned char reg, unsigned char val){
     i2c_master_start(); // make the start bit
 
-i2c_master_send(ADDR<1|0); // write the address, shifted left by 1, or'ed with a 0 to indicate writing
+i2c_master_send(ADDR<<1|0); // write the address, shifted left by 1, or'ed with a 0 to indicate writing
 
 i2c_master_send(reg); // the register to write to
 
@@ -116,17 +134,19 @@ i2c_master_stop(); // make the stop bit
 unsigned char i2cread(){
     i2c_master_start(); // make the start bit
 
-i2c_master_send(ADDR<1|0); // write the address, shifted left by 1, or'ed with a 0 to indicate writing
+i2c_master_send(ADDR<<1|0); // write the address, shifted left by 1, or'ed with a 0 to indicate writing
 
 i2c_master_send(0x09); // the register to read from
 
 i2c_master_restart(); // make the restart bit
 
-i2c_master_send(ADDR<1|1); // write the address, shifted left by 1, or'ed with a 1 to indicate reading
+i2c_master_send(ADDR<<1|1); // write the address, shifted left by 1, or'ed with a 1 to indicate reading
 
 unsigned char r = i2c_master_recv(); // save the value returned
 
 i2c_master_ack(1); // make the ack so the slave knows we got it
 
 i2c_master_stop(); // make the stop bit
+
+return r;
 }
