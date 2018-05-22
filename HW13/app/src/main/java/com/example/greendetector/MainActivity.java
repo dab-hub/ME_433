@@ -103,8 +103,8 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
 
         final Canvas c = mSurfaceHolder.lockCanvas();
         if (c != null) {
-            int threshR = seekBarRed.getProgress()/5; // comparison value
-            int threshB = seekBarBlue.getProgress()/5;
+            int threshR = seekBarRed.getProgress(); // comparison value
+            int threshB = seekBarBlue.getProgress();
             int[] pixels = new int[bmp.getWidth()]; // pixels[] is the RGBA data
             for (int j = 9; j < bmp.getHeight(); j++) {
                 bmp.getPixels(pixels, 0, bmp.getWidth(), 0, j, bmp.getWidth(), 1);
