@@ -101,10 +101,14 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         // every time there is a new Camera preview frame
         mTextureView.getBitmap(bmp);
 
+        int centerOfMass = 0;
+        int totalMass = 0;
+
         final Canvas c = mSurfaceHolder.lockCanvas();
         if (c != null) {
             int threshR = seekBarRed.getProgress(); // comparison value
             int threshB = seekBarBlue.getProgress();
+            int scanHeight = bmp.getHeight()/2;
             int[] pixels = new int[bmp.getWidth()]; // pixels[] is the RGBA data
             for (int j = 9; j < bmp.getHeight(); j++) {
                 bmp.getPixels(pixels, 0, bmp.getWidth(), 0, j, bmp.getWidth(), 1);
@@ -113,16 +117,30 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
                 for (int i = 0; i < bmp.getWidth(); i++) {
                     if (((green(pixels[i]) - red(pixels[i])) > threshR) && ((green(pixels[i]) - blue(pixels[i])) > threshB)) {
                         pixels[i] = rgb(0, 255, 0); // over write the pixel with pure green
+
+                       if (j==scanHeight){
+                            centerOfMass = centerOfMass + i;
+                            totalMass = totalMass + 1;
+                        }
                     }
                 }
 
                 // update the row
                 bmp.setPixels(pixels, 0, bmp.getWidth(), 0, j, bmp.getWidth(), 1);
             }
+            if (totalMass > 0) {
+                centerOfMass = centerOfMass / totalMass;
+            }
+            else {
+                centerOfMass = bmp.getWidth()/2;
+            }
+
         }
 
         // draw a circle at some position
-        int pos = 50;
+        int pos = centerOfMass;
+
+
         canvas.drawCircle(pos, 240, 5, paint1); // x position, y position, diameter, color
 
         // write the pos as text
