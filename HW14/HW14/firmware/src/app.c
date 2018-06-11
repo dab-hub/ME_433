@@ -64,6 +64,17 @@ char rx[64]; // the raw data
 int rxPos = 0; // how much data has been stored
 int gotRx = 0; // the flag
 int rxVal = 0; // a place to store the int that was received
+int error = 0;
+int left = 0;
+int right = 0;
+float left_correction_sum=0;
+float right_correction_sum=0;
+int P_param=10;
+float I_param=0.02;
+int kp = 6;
+int kp2=2;
+int MAX_DUTY = 1000;
+int scaling=140;
 
 // *****************************************************************************
 /* Application Data
@@ -333,6 +344,44 @@ void APP_Initialize(void) {
     appData.readBuffer = &readBuffer[0];
 
     /* PUT YOUR LCD, IMU, AND PIN INITIALIZATIONS HERE */
+    
+    RPA0Rbits.RPA0R = 0b0101; // A0 to OC1
+    RPB13Rbits.RPB13R = 0b0101; // B13 to OC4
+    
+    T2CONbits.TCKPS = 0; // Timer2 prescaler N=1 (1:1)
+PR2 = 2399; // 48000000 Hz / 20000 Hz / 1 - 1 = 2399 (20kHz PWM from 48MHz clock with 1:1 prescaler)
+TMR2 = 0; // initial TMR2 count is 0
+OC1CONbits.OCM = 0b110; // PWM mode without fault pin; other OCxCON bits are defaults
+OC1RS = 0; // duty cycle
+OC1R = 0; // initialize before turning OC1 on; afterward it is read-only
+OC4CONbits.OCM = 0b110; // PWM mode without fault pin; other OCxCON bits are defaults
+OC4RS = 0; // duty cycle
+OC4R = 0; // initialize before turning OC4 on; afterward it is read-only
+T2CONbits.ON = 1; // turn on Timer2
+OC1CONbits.ON = 1; // turn on OC1
+OC4CONbits.ON = 1; // turn on OC4
+
+T5CKRbits.T5CKR = 0b0100; // B9 is read by T5CK
+T3CKRbits.T3CKR = 0b0100; // B8 is read by T3CK
+
+T5CONbits.TCS = 1; // count external pulses
+PR5 = 0xFFFF; // enable counting to max value of 2^16 - 1
+TMR5 = 0; // set the timer count to zero
+T5CONbits.ON = 1; // turn Timer on and start counting
+T3CONbits.TCS = 1; // count external pulses
+PR3 = 0xFFFF; // enable counting to max value of 2^16 - 1
+TMR3 = 0; // set the timer count to zero
+T3CONbits.ON = 1; // turn Timer on and start counting
+
+
+T4CONbits.TCKPS = 2; // Timer4 prescaler N=4
+PR4 = 239999; // 48000000 Hz / 500 Hz / 4 - 1 = 23999 (500Hz from 48MHz clock with 4:1 prescaler) // CHANGED TO 50 Hz
+TMR4 = 0; // initial TMR4 count is 0
+T4CONbits.ON = 1;
+IPC4bits.T4IP = 4; // priority for Timer 4 
+IFS0bits.T4IF = 0; // clear interrupt flag for Timer4
+IEC0bits.T4IE = 1; // enable interrupt for Timer4
+
 
     startTime = _CP0_GET_COUNT();
 }
@@ -466,6 +515,27 @@ void APP_Tasks(void) {
                         USB_DEVICE_CDC_TRANSFER_FLAGS_DATA_COMPLETE);
                 rxPos = 0;
                 gotRx = 0;
+                
+                error = rxVal - 320; // 320 means the dot is in the middle of the screen
+                    if (error<0) { // slow down the left motor to steer to the left
+                        error  = -error;
+                        left = MAX_DUTY - kp*error;
+                        right = MAX_DUTY - kp2*error;
+                        if (left < 0){
+                            left = 0;
+                        }
+                    }
+                    else { // slow down the right motor to steer to the right
+                        right = MAX_DUTY - kp*error;
+                        left = MAX_DUTY-kp2*error;
+                        if (right<0) {
+                            right = 0;
+                        }
+                    }
+                    OC1RS = left;
+                    OC4RS = right;
+                
+                
             } else {
                 len = sprintf(dataOut, "%d\r\n", i);
                 i++;
@@ -496,6 +566,18 @@ void APP_Tasks(void) {
         default:
             break;
     }
+}
+
+void PI_Control(void){
+    float left_correction = left - (left/MAX_DUTY)*(1000.0/16.16)*TMR3;
+    float right_correction = right - (right/MAX_DUTY)*(1000.0/16.16)*TMR5;
+    left = (int) left - P_param*left_correction - I_param*left_correction_sum;
+    right = (int) right - P_param*right_correction - I_param*right_correction_sum;
+    OC1RS = left;
+    OC4RS = right;
+    left_correction_sum=left_correction_sum + left_correction;
+    right_correction_sum=right_correction_sum + right_correction;
+    
 }
 
 
